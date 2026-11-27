@@ -42,6 +42,13 @@ export const config = {
     minGapBetweenSendsMs: num('FAST_MIN_GAP_BETWEEN_SENDS_MS', 1200),
   },
 
+  etea: {
+    // Forgot password: only answer when the mobile number given matches the WhatsApp number
+    // asking. Stops someone from pulling another person's password with their details.
+    passwordOwnNumberOnly: !/^(0|false|no)$/i.test(process.env.PASSWORD_OWN_NUMBER_ONLY || 'true'),
+    passwordAttemptsPerHour: num('PASSWORD_ATTEMPTS_PER_HOUR', 3),
+  },
+
   limits: {
     perChatPerMinute: num('PER_CHAT_REPLIES_PER_MINUTE', 4),
     perChatPerHour: num('PER_CHAT_REPLIES_PER_HOUR', 30),

@@ -4,8 +4,18 @@ A WhatsApp bot that runs on **your own number** (linked as a device, like WhatsA
 answers people who message it about ETEA matters: roll number slips, current advertisements,
 forgot password, and so on.
 
-Phase 1 (this code) is the safe reply engine. The ETEA features are placeholders that
-reply "coming soon" until real information and sources are plugged in.
+## What people can ask
+
+| Menu | Feature | Source |
+| --- | --- | --- |
+| **1** | **Roll number slip.** Person sends their CNIC, the bot sends them the website's captcha picture, they type the code, and the bot replies with the result (slip details/links, or "not issued yet"). Up to 3 captcha tries. | etea.one/roll_no_section |
+| **2** | **Current advertisements.** Lists open projects (code + last date). Replying with a code sends the advertisement picture, plus corrigendum/syllabus links. Cached 15 minutes. | etea.online |
+| **3** | **Forgot password.** Asks CNIC, mobile and date of birth (any common format), then returns the password exactly as the ETEA "Forgot password (NADRA)" page shows it. | etea.online/apply/login/forgot_password_by_nadra |
+
+Privacy and safety for these features:
+- The bot **doesn't solve captchas**. The person types it, like on the website.
+- **Forgot password only works for your own number** by default: the mobile entered must be the WhatsApp number asking (`PASSWORD_OWN_NUMBER_ONLY`). Max 3 tries per hour per chat. This stops someone using another person's details.
+- CNIC, mobile and date of birth are kept in memory only for the few minutes of the conversation and never written to logs or disk.
 
 ## How it protects the number
 
@@ -99,5 +109,5 @@ src/rateLimiter.js  sliding-window limits and flood mute
 src/humanize.js     delays, typing time, serial send queue
 src/router.js       picks a handler, multi-step flows
 src/handlers/       menu and fallback
-src/etea/           ETEA features (placeholders for now)
+src/etea/           ETEA features and the website clients (*Service.js)
 ```

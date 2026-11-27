@@ -15,16 +15,34 @@ export function createBot({ config, logger, handlers = defaultHandlers, now = ()
   let sock = null;
   const setSocket = (s) => { sock = s; };
 
+  // Sender's phone number, when WhatsApp tells us (newer chats may use a private @lid id).
+  const phoneOf = (key) => {
+    for (const j of [key.remoteJid, key.remoteJidAlt, key.senderPn]) {
+      const m = j && String(j).match(/^(\d+)(?::\d+)?@s\.whatsapp\.net$/);
+      if (m) return m[1];
+    }
+    return null;
+  };
+
+  function toContent(reply) {
+    if (typeof reply === 'string') return { content: { text: reply }, typed: reply };
+    const text = reply.text || '';
+    if (reply.image) return { content: { image: reply.image, caption: text }, typed: text };
+    if (reply.document) return { content: { document: reply.document, fileName: reply.fileName || 'file', mimetype: reply.mimetype || 'application/octet-stream', caption: text }, typed: text };
+    return { content: { text }, typed: text };
+  }
+
   async function deliver(msg, jid, reply, h) {
+    const { content, typed } = toContent(reply);
     // 1. Pause, then mark as read, like someone picking up the phone.
     await sleep(rand(h.readDelayMinMs, h.readDelayMaxMs));
     await sock.readMessages([msg.key]).catch(() => {});
     // 2. Show "typing…" for about as long as the reply takes to type.
     await sock.sendPresenceUpdate('composing', jid).catch(() => {});
-    await sleep(typingDuration(reply, h));
+    await sleep(typingDuration(typed, h));
     await sock.sendPresenceUpdate('paused', jid).catch(() => {});
     // 3. Send as a reply to the user's own message.
-    await sock.sendMessage(jid, { text: reply }, { quoted: msg });
+    await sock.sendMessage(jid, content, { quoted: msg });
   }
 
   async function onMessages({ messages, type }) {
@@ -41,9 +59,9 @@ export function createBot({ config, logger, handlers = defaultHandlers, now = ()
 
       let reply, pace = config.human;
       try {
-        const r = await router.route(jid, text);
+        const r = await router.route(jid, text, { phone: phoneOf(msg.key) });
         if (!r) continue;
-        reply = r.text;
+        reply = r.reply;
         if (r.speed === 'fast' && config.fast) pace = config.fast;
       } catch (err) { logger.error({ err, jid }, 'handler failed'); reply = 'Sorry, something went wrong. Please try again later.'; }
 

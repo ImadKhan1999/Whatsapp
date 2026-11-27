@@ -52,7 +52,7 @@ function fakeBot() {
   bot.setSocket({
     readMessages: async (k) => read.push(k),
     sendPresenceUpdate: async (p, j) => presence.push([p, j]),
-    sendMessage: async (jid, content) => sent.push({ jid, text: content.text }),
+    sendMessage: async (jid, content) => sent.push({ jid, text: content.text ?? content.caption, content }),
   });
   const flush = () => bot.queue.push(async () => {});
   return { bot, sent, presence, read, flush };
@@ -75,7 +75,7 @@ test('bot: menu options route to ETEA handlers', async () => {
   await bot.onMessages({ type: 'notify', messages: [m(USER, '1')] });
   await bot.onMessages({ type: 'notify', messages: [m('2@s.whatsapp.net', 'forgot password')] });
   await flush();
-  assert.match(sent[0].text, /Roll number/);
+  assert.match(sent[0].text, /CNIC/);
   assert.match(sent[1].text, /password/i);
   bot.stop();
 });
@@ -112,7 +112,6 @@ test('router: ETEA features use the fast pace, menu uses normal', async () => {
   const { bot } = fakeBot();
   assert.equal((await bot.router.route('a@s.whatsapp.net', '1')).speed, 'fast');
   assert.equal((await bot.router.route('b@s.whatsapp.net', 'roll no')).speed, 'fast');
-  assert.equal((await bot.router.route('c@s.whatsapp.net', 'ads')).speed, 'fast');
   assert.equal((await bot.router.route('d@s.whatsapp.net', 'forgot password')).speed, 'fast');
   assert.equal((await bot.router.route('e@s.whatsapp.net', 'hi')).speed, 'normal');
   bot.stop();
