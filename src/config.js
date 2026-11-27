@@ -42,6 +42,13 @@ export const config = {
     minGapBetweenSendsMs: num('FAST_MIN_GAP_BETWEEN_SENDS_MS', 1200),
   },
 
+  storage: {
+    // Every 1:1 chat message is archived here (chats.db + media/). Keep it backed up.
+    dataDir: process.env.DATA_DIR || './data',
+    saveMedia: !/^(0|false|no)$/i.test(process.env.SAVE_MEDIA || 'true'),
+    maxMediaMb: num('MAX_MEDIA_MB', 16),
+  },
+
   etea: {
     // Forgot password: only answer when the mobile number given matches the WhatsApp number
     // asking. Stops someone from pulling another person's password with their details.

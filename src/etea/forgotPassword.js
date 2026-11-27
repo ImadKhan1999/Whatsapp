@@ -50,7 +50,8 @@ async function run(ctx, d) {
   try {
     const r = await recoverPassword(d);
     if (!r.ok) return `❌ ${r.message}\nSend *3* with your details to try again.`;
-    return `✅ Your ETEA password is: *${r.password}*\nLog in at https://etea.online/apply/login/ and please delete this message afterwards.`;
+    const text = `✅ Your ETEA password is: *${r.password}*\nLog in at https://etea.online/apply/login/ and please delete this message afterwards.`;
+    return { text, logText: text.replace(r.password, '••••••') }; // never store the password
   } catch {
     return `Sorry, the ETEA website isn't responding right now. Please try again later or use ${FORGOT_PAGE}`;
   }

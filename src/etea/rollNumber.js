@@ -4,11 +4,21 @@
 // person types the code -> bot sends the result in one reply.
 import { parseCnic, findCnic } from './http.js';
 import { newCaptcha, search, ROLLNO_BASE } from './rollNoService.js';
+import { solveCaptcha } from './captchaSolver.js';
 
 const MAX_CAPTCHA_TRIES = 3;
 const down = `Sorry, the ETEA roll number website isn't responding right now. Please try again later or visit ${ROLLNO_BASE}`;
 
 async function askCaptcha(ctx, cnic, tries, intro = '') {
+  // If a solver is plugged in (captchaSolver.js), try it first: result comes in one reply.
+  if (tries === 0) {
+    const auto = await newCaptcha();
+    const code = await solveCaptcha(auto.image).catch(() => null);
+    if (code) {
+      const r = await search(auto.jar, cnic, code);
+      if (r.kind !== 'bad-captcha') { ctx.clear(); return formatResult(r, cnic); }
+    }
+  }
   const { jar, image } = await newCaptcha();
   ctx.expect('rollno', { step: 'captcha', cnic, jar, tries });
   return { image, text: `${intro}Type the code in this picture to search CNIC ${cnic}.` };
@@ -48,12 +58,16 @@ export const rollNumber = {
         try { return await askCaptcha(ctx, s.cnic, s.tries + 1, 'Wrong code. '); } catch { ctx.clear(); return down; }
       }
       ctx.clear();
-      if (r.kind === 'pdf') return { document: r.pdf, fileName: `roll-no-slip-${s.cnic}.pdf`, mimetype: 'application/pdf', text: 'Here is your roll number slip. Send *0* for the menu.' };
-      if (r.kind === 'none') return `No roll number slip was found for CNIC ${s.cnic} yet. Slips are usually issued a few days before the test.\n\nSend *1* to search again, or *0* for the menu.`;
-      const links = (r.links || []).map((l) => `• ${l.label || 'Download'}: ${l.url}`).join('\n');
-      return `${r.kind === 'found' ? '🎫 *Roll number slip*\n\n' : ''}${r.message}${links ? `\n\n${links}` : ''}\n\nSend *1* to search another CNIC, or *0* for the menu.`;
+      return formatResult(r, s.cnic);
     }
     ctx.clear();
     return undefined;
   },
 };
+
+function formatResult(r, cnic) {
+  if (r.kind === 'pdf') return { document: r.pdf, fileName: `roll-no-slip-${cnic}.pdf`, mimetype: 'application/pdf', text: 'Here is your roll number slip. Send *0* for the menu.' };
+  if (r.kind === 'none') return `No roll number slip was found for CNIC ${cnic} yet. Slips are usually issued a few days before the test.\n\nSend *1* to search again, or *0* for the menu.`;
+  const links = (r.links || []).map((l) => `• ${l.label || 'Download'}: ${l.url}`).join('\n');
+  return `${r.kind === 'found' ? '🎫 *Roll number slip*\n\n' : ''}${r.message}${links ? `\n\n${links}` : ''}\n\nSend *1* to search another CNIC, or *0* for the menu.`;
+}

@@ -1,12 +1,16 @@
 // Connects your own WhatsApp number (as a linked device) and runs the reply bot.
-import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from 'baileys';
+import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, fetchLatestBaileysVersion, useMultiFileAuthState } from 'baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { config } from './config.js';
 import { createBot } from './bot.js';
+import { openStore } from './store.js';
 
 const logger = pino({ level: config.logLevel });
-const bot = createBot({ config, logger });
+const store = openStore({ dir: config.storage.dataDir });
+const downloadMedia = (msg, sock) => downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+const bot = createBot({ config, logger, store, downloadMedia });
+logger.info({ db: `${config.storage.dataDir}/chats.db` }, 'chat archive ready');
 
 let retries = 0;
 let pairingRequested = false;
@@ -68,6 +72,7 @@ async function start() {
   });
 }
 
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { logger.info('shutting down'); bot.stop(); process.exit(0); });
+// SIGBREAK = Ctrl+Break on Windows; NSSM/pm2 send SIGINT/SIGTERM.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => { logger.info('shutting down'); bot.stop(); store.close(); process.exit(0); });
 
 start().catch((err) => { logger.error({ err }, 'failed to start'); process.exit(1); });

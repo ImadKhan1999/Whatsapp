@@ -55,24 +55,48 @@ onto the Cloud API later without rewriting the ETEA features.
 
 ## Run it
 
-Needs Node.js 20 or newer.
+Needs **Node.js 22.13 or newer** (Node 24 LTS recommended). Works on Windows Server and Linux.
 
 ```bash
 npm install
-cp .env.example .env      # optional, defaults are safe
+cp .env.example .env      # optional, defaults are safe   (Windows: copy .env.example .env)
 npm start
 ```
 
 Scan the QR in WhatsApp → **Linked devices → Link a device**. Or set `PAIRING_NUMBER` in `.env`
 (e.g. `923001234567`) to get an 8-character code instead. After the first link, `npm start`
-reconnects on its own. Keep it running with something like `pm2 start src/index.js --name etea-bot`.
+reconnects on its own.
 
 To re-link from scratch, stop the bot and delete the `auth/` folder. **Keep `auth/` private**: it
 is your WhatsApp login.
 
 ```bash
-npm test   # filters, rate limits and reply pipeline, with a fake WhatsApp socket
+npm test   # filters, rate limits, ETEA flows and archive, with a fake WhatsApp socket
 ```
+
+### Windows Server: run at boot
+
+1. Install Node.js 24 LTS from nodejs.org, then in the bot folder: `npm install`.
+2. Link once interactively: `npm start`, scan the QR, wait for `connected`, then `Ctrl+C`.
+3. In an **elevated** PowerShell:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\windows\install-service.ps1
+   ```
+   This creates the scheduled task **ETEA-WhatsApp-Bot**: starts at boot without anyone logged in,
+   restarts every minute if it stops. Logs go to `data\logs\bot.log`.
+4. Remove with `scripts\windows\uninstall-service.ps1` (keeps your chats and login).
+
+## Chat archive
+
+Every message in your 1:1 chats is saved on the server, in `data/chats.db` (SQLite):
+what people send, the bot's replies, and anything you type yourself from the phone.
+Pictures, voice notes and documents people send are saved under `data/media/YYYY-MM/`
+(up to 16 MB each, `SAVE_MEDIA` / `MAX_MEDIA_MB` in `.env`). Groups and status are not stored.
+
+- **Passwords are never stored.** The forgot-password reply is saved as `••••••`.
+- `npm run export` writes everything to `data/export/messages-<date>.csv` (opens in Excel, Urdu included).
+- Open `chats.db` with [DB Browser for SQLite](https://sqlitebrowser.org/) to search it. Tables: `chats` (one row per person) and `messages`.
+- Back up `data/` and `auth/` regularly. Both contain personal data, so keep the server locked down.
 
 ## Adding ETEA features
 
@@ -110,4 +134,7 @@ src/humanize.js     delays, typing time, serial send queue
 src/router.js       picks a handler, multi-step flows
 src/handlers/       menu and fallback
 src/etea/           ETEA features and the website clients (*Service.js)
+src/store.js        SQLite chat archive
+src/archive.js      what gets archived, password masking, media saving
+scripts/windows/    run-at-boot task for Windows Server
 ```

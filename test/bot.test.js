@@ -116,3 +116,45 @@ test('router: ETEA features use the fast pace, menu uses normal', async () => {
   assert.equal((await bot.router.route('e@s.whatsapp.net', 'hi')).speed, 'normal');
   bot.stop();
 });
+
+test('archive: stores incoming, bot replies (masked) and phone messages, plus media', async () => {
+  const { mkdtempSync, rmSync, existsSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const { openStore } = await import('../src/store.js');
+  const dir = mkdtempSync(path.join(tmpdir(), 'wa-'));
+  const store = openStore({ dir });
+  const zero = { readDelayMinMs: 0, readDelayMaxMs: 0, typingMsPerChar: 0, typingMinMs: 0, typingMaxMs: 0, minGapBetweenSendsMs: 0 };
+  const config = { limits, human: zero, fast: zero, storage: { dataDir: dir, saveMedia: true, maxMediaMb: 16 } };
+  const logger = { debug() {}, info() {}, warn() {}, error() {} };
+  const secretHandler = { id: 'x', menu: '9', title: 'x', handle: () => ({ text: 'pw is hunter2', logText: 'pw is ••••' }) };
+  const bot = createBot({ config, logger, store, handlers: [secretHandler], downloadMedia: async () => Buffer.from('img') });
+  let n = 0;
+  bot.setSocket({
+    readMessages: async () => {}, sendPresenceUpdate: async () => {},
+    sendMessage: async (jid, content) => {
+      const sent = { key: { remoteJid: jid, id: `BOT${++n}`, fromMe: true }, message: { conversation: content.text }, messageTimestamp: Math.floor(now()) };
+      await bot.onMessages({ type: 'append', messages: [sent] }); // WhatsApp echoes our own message
+      return sent;
+    },
+  });
+  await bot.onMessages({ type: 'notify', messages: [m(USER, '9', { msg: { pushName: 'Ali' } })] });
+  await bot.onMessages({ type: 'notify', messages: [{ key: { remoteJid: USER, id: 'IMG1', fromMe: false }, message: { imageMessage: { caption: 'my slip', mimetype: 'image/jpeg' } }, messageTimestamp: Math.floor(now()) }] });
+  await bot.onMessages({ type: 'notify', messages: [m(USER, 'typed on phone', { key: { fromMe: true } })] });
+  await bot.onMessages({ type: 'notify', messages: [m('1@g.us', 'group msg')] });
+  await bot.queue.push(async () => {});
+
+  const rows = store.db.prepare('SELECT direction, source, type, text, media_path FROM messages ORDER BY id').all();
+  const has = (d, src, text) => rows.find((r) => r.direction === d && r.source === src && r.text === text);
+  assert.ok(has('in', 'user', '9'));
+  assert.ok(has('out', 'phone', 'typed on phone'));
+  assert.ok(has('out', 'bot', 'pw is ••••'));
+  assert.equal(rows.filter((r) => r.text === 'pw is ••••').length, 1); // echo not stored twice
+  const img = has('in', 'user', 'my slip');
+  assert.ok(img && existsSync(img.media_path));
+  assert.ok(!JSON.stringify(rows).includes('hunter2'));
+  const chat = store.db.prepare('SELECT * FROM chats').get();
+  assert.equal(chat.name, 'Ali');
+  assert.equal(chat.messages, rows.length);
+  bot.stop(); store.close(); rmSync(dir, { recursive: true, force: true });
+});

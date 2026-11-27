@@ -111,7 +111,9 @@ test('forgot password: details pulled from one message in any order', () => {
 test('forgot password: one message in, one reply out (mobile taken from WhatsApp number)', async () => {
   const calls = mockFetch([[/forgot_password_cnic_mobile_dob/, () => html('{"error":false,"forgot_error":false,"msg":"abcd.1234"}')]]);
   const say = flow();
-  assert.match(await say('3 1730112345671 10 July 1999'), /abcd\.1234/);
+  const ok = await say('3 1730112345671 10 July 1999');
+  assert.match(ok.text, /abcd\.1234/);
+  assert.doesNotMatch(ok.logText, /abcd\.1234/);
   const body = calls[0].opts.body;
   assert.equal(body.get('cnic'), '1730112345671');
   assert.equal(body.get('mobile'), '03001234567');
@@ -126,7 +128,7 @@ test('forgot password: asks only for what is missing, in one message', async () 
   assert.match(ask, /date of birth/);
   assert.doesNotMatch(ask, /mobile/); // known from the WhatsApp number
   assert.match(await say('1730112345671'), /still need your \*date of birth/);
-  assert.match(await say('10/07/1999'), /abcd\.1234/);
+  assert.match((await say('10/07/1999')).text, /abcd\.1234/);
 });
 
 test('forgot password: refuses a mobile that is not the asking WhatsApp number', async () => {

@@ -5,8 +5,9 @@ import { RateLimiter } from './rateLimiter.js';
 import { SendQueue, sleep, rand, typingDuration } from './humanize.js';
 import { Router } from './router.js';
 import { handlers as defaultHandlers, makeFallback } from './handlers/index.js';
+import { createArchiver } from './archive.js';
 
-export function createBot({ config, logger, handlers = defaultHandlers, now = () => Date.now() }) {
+export function createBot({ config, logger, handlers = defaultHandlers, store = null, downloadMedia = null, now = () => Date.now() }) {
   const limiter = new RateLimiter(config.limits);
   const queue = new SendQueue(config.human.minGapBetweenSendsMs);
   const router = new Router(handlers, { fallback: makeFallback(config.limits.fallbackCooldownMinutes) });
@@ -24,9 +25,12 @@ export function createBot({ config, logger, handlers = defaultHandlers, now = ()
     return null;
   };
 
+  const archive = createArchiver({ store, config, logger, phoneOf, downloadMedia: (m) => downloadMedia?.(m, sock) });
+
   function toContent(reply) {
     if (typeof reply === 'string') return { content: { text: reply }, typed: reply };
     const text = reply.text || '';
+    // reply.logText: what to store in the archive instead of text (e.g. password masked).
     if (reply.image) return { content: { image: reply.image, caption: text }, typed: text };
     if (reply.document) return { content: { document: reply.document, fileName: reply.fileName || 'file', mimetype: reply.mimetype || 'application/octet-stream', caption: text }, typed: text };
     return { content: { text }, typed: text };
@@ -42,11 +46,14 @@ export function createBot({ config, logger, handlers = defaultHandlers, now = ()
     await sleep(typingDuration(typed, h));
     await sock.sendPresenceUpdate('paused', jid).catch(() => {});
     // 3. Send as a reply to the user's own message.
-    await sock.sendMessage(jid, content, { quoted: msg });
+    archive.willSend(jid, typed, typeof reply === 'object' ? reply.logText : undefined);
+    const sent = await sock.sendMessage(jid, content, { quoted: msg });
+    if (sent) await archive.record(sent);
   }
 
   async function onMessages({ messages, type }) {
     for (const msg of messages) {
+      await archive.record(msg);
       const id = msg.key?.id;
       if (id && seen.has(id)) continue;
       if (id) seen.set(id, now());
