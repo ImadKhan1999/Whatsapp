@@ -22,4 +22,4 @@ Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Silent
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "Installed and started '$TaskName'. Logs: $Root\data\logs\bot.log"
-Write-Host "Stop:  Stop-ScheduledTask -TaskName $TaskName   (then also: taskkill /im node.exe /f if needed)"
+Write-Host "Stop:  Stop-ScheduledTask -TaskName $TaskName   (or scripts\windows\uninstall-service.ps1 to remove it)"
