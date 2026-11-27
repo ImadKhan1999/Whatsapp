@@ -8,9 +8,9 @@ forgot password, and so on.
 
 | Menu | Feature | Source |
 | --- | --- | --- |
-| **1** | **Roll number slip.** Person sends their CNIC, the bot sends them the website's captcha picture, they type the code, and the bot replies with the result (slip details/links, or "not issued yet"). Up to 3 captcha tries. | etea.one/roll_no_section |
+| **1** | **Roll number slip.** Send `1 1730112345671` (or just the CNIC). The bot replies with the website's captcha picture, the person types the code, and gets the result in one reply. That's 2 bot messages in total. | etea.one/roll_no_section |
 | **2** | **Current advertisements.** Lists open projects (code + last date). Replying with a code sends the advertisement picture, plus corrigendum/syllabus links. Cached 15 minutes. | etea.online |
-| **3** | **Forgot password.** Asks CNIC, mobile and date of birth (any common format), then returns the password exactly as the ETEA "Forgot password (NADRA)" page shows it. | etea.online/apply/login/forgot_password_by_nadra |
+| **3** | **Forgot password.** Send `3 1730112345671 10/07/1999` and get the password in one reply. The mobile is taken from the WhatsApp number asking. Anything missing is asked for in a single message. | etea.online/apply/login/forgot_password_by_nadra |
 
 Privacy and safety for these features:
 - The bot **doesn't solve captchas**. The person types it, like on the website.

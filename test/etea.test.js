@@ -6,6 +6,7 @@ import { parseResult } from '../src/etea/rollNoService.js';
 import { parseDob, parseMobile } from '../src/etea/passwordService.js';
 import { parseCnic } from '../src/etea/http.js';
 import { Router } from '../src/router.js';
+import { extractDetails } from '../src/etea/forgotPassword.js';
 import { handlers } from '../src/handlers/index.js';
 
 const fx = (f) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8');
@@ -93,7 +94,7 @@ test('roll no flow: CNIC -> captcha picture -> retry on wrong code -> result', a
   assert.ok(Buffer.isBuffer(c1.image));
   const c2 = await say('1234');
   assert.ok(Buffer.isBuffer(c2.image));
-  assert.match(c2.text, /didn't match/);
+  assert.match(c2.text, /Wrong code/);
   const res = await say('5678');
   assert.match(res, /No Roll Number Slip found/);
   const post = calls.filter((c) => /check_cnic/.test(c.url)).at(-1);
@@ -101,30 +102,53 @@ test('roll no flow: CNIC -> captcha picture -> retry on wrong code -> result', a
   assert.match(post.opts.headers.Cookie, /ci_session=abc/);
 });
 
-test('forgot password flow: asks 3 details, posts them, returns password', async () => {
+test('forgot password: details pulled from one message in any order', () => {
+  assert.deepEqual(extractDetails('3 1730112345671 03001234567 10/07/1999'), { cnic: '1730112345671', mobile: '03001234567', dob: '1999-07-10' });
+  assert.deepEqual(extractDetails('dob 10 July 1999 cnic 17301-1234567-1'), { cnic: '1730112345671', mobile: null, dob: '1999-07-10' });
+  assert.deepEqual(extractDetails('forgot password'), { cnic: null, mobile: null, dob: null });
+});
+
+test('forgot password: one message in, one reply out (mobile taken from WhatsApp number)', async () => {
   const calls = mockFetch([[/forgot_password_cnic_mobile_dob/, () => html('{"error":false,"forgot_error":false,"msg":"abcd.1234"}')]]);
   const say = flow();
-  assert.match(await say('forgot password'), /CNIC/);
-  assert.match(await say('1730112345671'), /mobile/);
-  assert.match(await say('03001234567'), /date of birth/);
-  assert.match(await say('10 July 1999'), /abcd\.1234/);
+  assert.match(await say('3 1730112345671 10 July 1999'), /abcd\.1234/);
   const body = calls[0].opts.body;
   assert.equal(body.get('cnic'), '1730112345671');
   assert.equal(body.get('mobile'), '03001234567');
   assert.equal(body.get('dob'), '1999-07-10');
 });
 
+test('forgot password: asks only for what is missing, in one message', async () => {
+  mockFetch([[/forgot_password_cnic_mobile_dob/, () => html('{"error":false,"forgot_error":false,"msg":"abcd.1234"}')]]);
+  const say = flow();
+  const ask = await say('3');
+  assert.match(ask, /CNIC/);
+  assert.match(ask, /date of birth/);
+  assert.doesNotMatch(ask, /mobile/); // known from the WhatsApp number
+  assert.match(await say('1730112345671'), /still need your \*date of birth/);
+  assert.match(await say('10/07/1999'), /abcd\.1234/);
+});
+
 test('forgot password: refuses a mobile that is not the asking WhatsApp number', async () => {
   mockFetch([]);
   const say = flow();
-  await say('3', '923001111111');
-  await say('1730112345671', '923001111111');
-  assert.match(await say('03001234567', '923001111111'), /only recover the password for the WhatsApp number/);
+  assert.match(await say('3 1730112345671 03009999999 10/07/1999', '923001111111'), /only recover the password for the WhatsApp number/);
 });
 
 test('forgot password: shows the site error when details do not match', async () => {
   mockFetch([[/forgot_password/, () => html('{"error":false,"forgot_error":true,"msg":"Sorry, CNIC, Date of Birth (NADRA), and Mobile do not match our records."}')]]);
   const say = flow();
-  await say('3'); await say('1730112345671'); await say('03001234567');
-  assert.match(await say('01/01/2000'), /do not match our records/);
+  assert.match(await say('3 1730112345671 01/01/2000'), /do not match our records/);
+});
+
+test('roll no: CNIC with the menu choice goes straight to the captcha picture', async () => {
+  mockFetch([
+    [/roll_no_section\/$/, () => html('<html></html>', { 'set-cookie': 'ci_session=abc; path=/' })],
+    [/captcha_route/, png],
+  ]);
+  for (const text of ['1 1730112345671', '17301-1234567-1', 'roll no 1730112345671']) {
+    const r = await flow()(text);
+    assert.ok(Buffer.isBuffer(r.image), text);
+    assert.match(r.text, /1730112345671/);
+  }
 });

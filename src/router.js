@@ -59,7 +59,7 @@ export class Router {
 
     const t = text.trim();
     const h =
-      this.handlers.find((x) => x.menu && x.menu === t) ||
+      this.handlers.find((x) => x.menu && (x.menu === t || t.split(/\s+/)[0] === x.menu)) ||
       this.handlers.find((x) => x.match && x.match.test(t));
     if (h) return { reply: await h.handle(ctx), handler: h };
     return { reply: this.fallback ? await this.fallback(ctx) : null, handler: null };

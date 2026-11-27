@@ -1,15 +1,17 @@
 // ETEA: roll number slip lookup on https://etea.one/roll_no_section/.
-// Flow: CNIC -> bot sends the site's captcha picture -> person types it -> result.
-import { parseCnic } from './http.js';
+// Flow, kept to 2 bot messages: person sends CNIC (can be "1 1730112345671" or just the
+// CNIC) -> bot sends the site's captcha picture with the instructions as its caption ->
+// person types the code -> bot sends the result in one reply.
+import { parseCnic, findCnic } from './http.js';
 import { newCaptcha, search, ROLLNO_BASE } from './rollNoService.js';
 
 const MAX_CAPTCHA_TRIES = 3;
 const down = `Sorry, the ETEA roll number website isn't responding right now. Please try again later or visit ${ROLLNO_BASE}`;
 
-async function askCaptcha(ctx, cnic, tries, intro) {
+async function askCaptcha(ctx, cnic, tries, intro = '') {
   const { jar, image } = await newCaptcha();
   ctx.expect('rollno', { step: 'captcha', cnic, jar, tries });
-  return { image, text: `${intro}\n\nType the *code shown in this picture* (it's the website's security check).` };
+  return { image, text: `${intro}Type the code in this picture to search CNIC ${cnic}.` };
 }
 
 export const rollNumber = {
@@ -17,19 +19,22 @@ export const rollNumber = {
   menu: '1',
   speed: 'fast',
   title: 'Roll number slip',
-  match: /\broll\s*(no|number|slip)?\b|\bslip\b/i,
+  // Also triggered by a message that is only a CNIC.
+  match: /\broll\s*(no|number|slip)?\b|\bslip\b|^\s*\d{5}[\s-]?\d{7}[\s-]?\d\s*$/i,
 
-  handle(ctx) {
+  async handle(ctx) {
+    const cnic = findCnic(ctx.text);
+    if (cnic) { try { return await askCaptcha(ctx, cnic, 0); } catch { ctx.clear(); return down; } }
     ctx.expect('rollno', { step: 'cnic' });
-    return 'Please send your *CNIC number* (13 digits, without dashes).\n\nSend *0* to cancel.';
+    return 'Send your *CNIC number* (13 digits).\nTip: next time send it with the option, e.g. *1 1730112345671*';
   },
 
   async onInput(ctx) {
     const s = ctx.chat.data;
     if (s.step === 'cnic') {
-      const cnic = parseCnic(ctx.text);
+      const cnic = parseCnic(ctx.text) || findCnic(ctx.text);
       if (!cnic) return 'That doesn\'t look like a CNIC. Please send the 13 digits, for example 1730112345671. Send *0* to cancel.';
-      try { return await askCaptcha(ctx, cnic, 0, 'Thanks.'); } catch { ctx.clear(); return down; }
+      try { return await askCaptcha(ctx, cnic, 0); } catch { ctx.clear(); return down; }
     }
 
     if (s.step === 'captcha') {
@@ -40,7 +45,7 @@ export const rollNumber = {
 
       if (r.kind === 'bad-captcha') {
         if (s.tries + 1 >= MAX_CAPTCHA_TRIES) { ctx.clear(); return `That code didn't match ${MAX_CAPTCHA_TRIES} times. Send *1* to start again.`; }
-        try { return await askCaptcha(ctx, s.cnic, s.tries + 1, 'That code didn\'t match. Here is a new one.'); } catch { ctx.clear(); return down; }
+        try { return await askCaptcha(ctx, s.cnic, s.tries + 1, 'Wrong code. '); } catch { ctx.clear(); return down; }
       }
       ctx.clear();
       if (r.kind === 'pdf') return { document: r.pdf, fileName: `roll-no-slip-${s.cnic}.pdf`, mimetype: 'application/pdf', text: 'Here is your roll number slip. Send *0* for the menu.' };

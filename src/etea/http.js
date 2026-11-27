@@ -42,6 +42,12 @@ export function htmlToText(html) {
     .split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n');
 }
 
+/** Find a CNIC anywhere in a message ("1 17301-1234567-1", "roll no 1730112345671"). */
+export function findCnic(text) {
+  const m = String(text).match(/(?<!\d)(\d{5})[\s-]?(\d{7})[\s-]?(\d)(?!\d)/);
+  return m ? m[1] + m[2] + m[3] : null;
+}
+
 /** Normalise a CNIC typed as 17301-6498488-1 or with spaces. Returns 13 digits or null. */
 export function parseCnic(text) {
   const d = String(text).replace(/[\s-]/g, '');
