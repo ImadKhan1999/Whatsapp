@@ -5,6 +5,8 @@ import qrcode from 'qrcode-terminal';
 import { config } from './config.js';
 import { createBot } from './bot.js';
 import { openStore } from './store.js';
+import { writeFileSync, rmSync } from 'node:fs';
+import path from 'node:path';
 
 const logger = pino({ level: config.logLevel });
 const store = openStore({ dir: config.storage.dataDir });
@@ -13,7 +15,6 @@ const bot = createBot({ config, logger, store, downloadMedia });
 logger.info({ db: `${config.storage.dataDir}/chats.db` }, 'chat archive ready');
 
 let retries = 0;
-let pairingRequested = false;
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
@@ -30,6 +31,7 @@ async function start() {
     generateHighQualityLinkPreview: false,
   });
   bot.setSocket(sock);
+  let pairingRequested = false; // one code per connection attempt
 
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('messages.upsert', (u) => bot.onMessages(u).catch((err) => logger.error({ err }, 'upsert failed')));
@@ -40,6 +42,7 @@ async function start() {
         pairingRequested = true;
         const code = await sock.requestPairingCode(config.pairingNumber);
         console.log(`\nPairing code: ${code}\nWhatsApp > Linked devices > Link a device > Link with phone number instead.\n`);
+        try { writeFileSync(path.join(config.storage.dataDir, 'pairing-code.txt'), `${code}\n${new Date().toISOString()}\n`); } catch { /* ignore */ }
       } else if (!config.pairingNumber) {
         console.log('\nScan this QR with WhatsApp > Linked devices > Link a device:\n');
         qrcode.generate(qr, { small: true });
@@ -47,6 +50,7 @@ async function start() {
     }
     if (connection === 'open') {
       retries = 0;
+      rmSync(path.join(config.storage.dataDir, 'pairing-code.txt'), { force: true });
       logger.info({ me: sock.user?.id }, 'connected. Waiting for people to message you.');
     }
     if (connection === 'close') {
