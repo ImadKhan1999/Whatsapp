@@ -19,10 +19,10 @@ export class SendQueue {
     this.chain = Promise.resolve();
     this.pending = 0;
   }
-  push(task) {
+  push(task, minGapMs = this.minGapMs) {
     this.pending++;
     const run = async () => {
-      const gap = this.minGapMs + rand(0, this.minGapMs);
+      const gap = minGapMs + rand(0, minGapMs);
       const wait = this.last + gap - Date.now();
       if (wait > 0) await sleep(wait);
       try { return await task(); } finally { this.last = Date.now(); this.pending--; }

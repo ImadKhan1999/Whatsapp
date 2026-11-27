@@ -14,7 +14,7 @@ reply "coming soon" until real information and sources are plugged in.
 | **Replies only, never messages first.** The bot has no "send to number X" feature; it only answers a message someone just sent, in that same chat. | Unsolicited messages to people who never wrote to you are the #1 ban reason. |
 | **Private chats only.** Groups, status updates, broadcast lists and channels are ignored (both in the socket config and the message filter). | Bots answering in groups get reported quickly. |
 | **Live messages only.** Backlog/history and anything older than 5 minutes is skipped. | Prevents a burst of replies after the bot was offline. |
-| **Human pacing.** Waits 1.5–4 s, marks the message read, shows *typing…* for about as long as the reply would take to type (1.5–7 s), then sends. | Instant robotic replies are a bot signal. |
+| **Human pacing.** Waits, marks the message read, shows *typing…* for about as long as the reply would take to type, then sends. The main ETEA features (roll no, ads, forgot password) use a **fast** pace: reply in about 1.5–4 s total. Menu and other replies use the normal pace (about 3–11 s). | Instant robotic replies are a bot signal. |
 | **One message at a time.** All replies go through a single queue with a randomised 3–6 s gap. | No parallel bursts. |
 | **Rate limits.** Per chat: 4/min, 30/hour. Overall: 12/min, 300/hour, 1500/day. Over the limit, the bot stays silent. | Caps volume even if lots of people write at once. |
 | **Flood mute.** A chat sending more than 10 messages a minute is ignored for 15 minutes. | Stops spam and bot-vs-bot loops. |
@@ -72,6 +72,7 @@ Each feature is one file in `src/etea/`, registered in `src/handlers/index.js`:
 export const rollNumber = {
   id: 'rollno',
   menu: '1',                       // number shown in the main menu
+  speed: 'fast',                   // optional: quicker pacing from config.fast
   title: 'Roll number slip',
   match: /\broll\s*(no|number)?\b/i, // optional keywords
   async handle(ctx) {              // first reply

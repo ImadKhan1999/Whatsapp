@@ -2,6 +2,7 @@
 export const advertisements = {
   id: 'ads',
   menu: '2',
+  speed: 'fast', // people use this most: answer quicker
   title: 'Current advertisements',
   match: /\b(ads?|advertisements?|jobs?|posts?)\b/i,
   handle: () =>

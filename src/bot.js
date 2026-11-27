@@ -15,8 +15,7 @@ export function createBot({ config, logger, handlers = defaultHandlers, now = ()
   let sock = null;
   const setSocket = (s) => { sock = s; };
 
-  async function deliver(msg, jid, reply) {
-    const h = config.human;
+  async function deliver(msg, jid, reply, h) {
     // 1. Pause, then mark as read, like someone picking up the phone.
     await sleep(rand(h.readDelayMinMs, h.readDelayMaxMs));
     await sock.readMessages([msg.key]).catch(() => {});
@@ -40,17 +39,20 @@ export function createBot({ config, logger, handlers = defaultHandlers, now = ()
 
       if (!limiter.noteIncoming(jid, now())) { logger.warn({ jid }, 'chat flooding or muted, staying silent'); continue; }
 
-      let reply;
-      try { reply = await router.route(jid, text); }
-      catch (err) { logger.error({ err, jid }, 'handler failed'); reply = 'Sorry, something went wrong. Please try again later.'; }
-      if (!reply) continue;
+      let reply, pace = config.human;
+      try {
+        const r = await router.route(jid, text);
+        if (!r) continue;
+        reply = r.text;
+        if (r.speed === 'fast' && config.fast) pace = config.fast;
+      } catch (err) { logger.error({ err, jid }, 'handler failed'); reply = 'Sorry, something went wrong. Please try again later.'; }
 
       const blocked = limiter.blockReason(jid, now());
       if (blocked) { logger.warn({ jid, blocked }, 'rate limit hit, not replying'); continue; }
       limiter.noteOutgoing(jid, now());
 
       queue
-        .push(() => deliver(msg, jid, reply))
+        .push(() => deliver(msg, jid, reply, pace), pace.minGapBetweenSendsMs)
         .then(() => logger.info({ jid }, 'replied'))
         .catch((err) => logger.error({ err, jid }, 'send failed'));
     }

@@ -11,6 +11,7 @@
 //   }
 // ctx = { jid, text, chat, expect(id, data), clear(), handlers }
 // Return a string to reply, or null to stay silent.
+// Set speed: 'fast' on a handler to use the quicker pacing from config.fast.
 
 const CANCEL = /^(0|cancel|stop|back|menu|exit)$/i;
 const SESSION_TTL_MS = 15 * 60_000;
@@ -30,7 +31,14 @@ export class Router {
     return c;
   }
 
+  /** @returns {Promise<{ text: string, speed: 'fast'|'normal' } | null>} */
   async route(jid, text) {
+    const { reply, handler } = await this._route(jid, text);
+    if (!reply) return null;
+    return { text: reply, speed: handler?.speed === 'fast' ? 'fast' : 'normal' };
+  }
+
+  async _route(jid, text) {
     const chat = this._chat(jid);
     const ctx = {
       jid, text, chat, handlers: this.handlers,
@@ -41,7 +49,7 @@ export class Router {
     // In the middle of a multi-step flow: feed the answer to that handler.
     if (chat.expecting && !CANCEL.test(text)) {
       const h = this.byId.get(chat.expecting);
-      if (h?.onInput) return h.onInput(ctx);
+      if (h?.onInput) return { reply: await h.onInput(ctx), handler: h };
     }
     if (chat.expecting) ctx.clear();
 
@@ -49,8 +57,8 @@ export class Router {
     const h =
       this.handlers.find((x) => x.menu && x.menu === t) ||
       this.handlers.find((x) => x.match && x.match.test(t));
-    if (h) return h.handle(ctx);
-    return this.fallback ? this.fallback(ctx) : null;
+    if (h) return { reply: await h.handle(ctx), handler: h };
+    return { reply: this.fallback ? await this.fallback(ctx) : null, handler: null };
   }
 
   sweep() {

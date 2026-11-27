@@ -45,7 +45,8 @@ test('rate limiter: per-chat and global caps, flood mute', () => {
 
 function fakeBot() {
   const sent = [], presence = [], read = [];
-  const config = { limits, human: { readDelayMinMs: 0, readDelayMaxMs: 0, typingMsPerChar: 0, typingMinMs: 0, typingMaxMs: 0, minGapBetweenSendsMs: 0 } };
+  const zero = { readDelayMinMs: 0, readDelayMaxMs: 0, typingMsPerChar: 0, typingMinMs: 0, typingMaxMs: 0, minGapBetweenSendsMs: 0 };
+  const config = { limits, human: zero, fast: { ...zero } };
   const logger = { debug() {}, info() {}, warn() {}, error() {} };
   const bot = createBot({ config, logger });
   bot.setSocket({
@@ -104,5 +105,15 @@ test('bot: per-chat limit stops a chat from getting a burst of replies', async (
   for (const t of ['hi', '1', '2']) await bot.onMessages({ type: 'notify', messages: [m(USER, t)] });
   await flush();
   assert.equal(sent.length, 2); // perChatPerMinute = 2
+  bot.stop();
+});
+
+test('router: ETEA features use the fast pace, menu uses normal', async () => {
+  const { bot } = fakeBot();
+  assert.equal((await bot.router.route('a@s.whatsapp.net', '1')).speed, 'fast');
+  assert.equal((await bot.router.route('b@s.whatsapp.net', 'roll no')).speed, 'fast');
+  assert.equal((await bot.router.route('c@s.whatsapp.net', 'ads')).speed, 'fast');
+  assert.equal((await bot.router.route('d@s.whatsapp.net', 'forgot password')).speed, 'fast');
+  assert.equal((await bot.router.route('e@s.whatsapp.net', 'hi')).speed, 'normal');
   bot.stop();
 });

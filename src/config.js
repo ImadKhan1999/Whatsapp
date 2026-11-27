@@ -31,6 +31,17 @@ export const config = {
     minGapBetweenSendsMs: num('MIN_GAP_BETWEEN_SENDS_MS', 3000),
   },
 
+  // Quicker pacing for the main ETEA features (any handler with speed: 'fast').
+  // Still reads first, still shows typing, still one message at a time.
+  fast: {
+    readDelayMinMs: num('FAST_READ_DELAY_MIN_MS', 400),
+    readDelayMaxMs: num('FAST_READ_DELAY_MAX_MS', 1200),
+    typingMsPerChar: num('FAST_TYPING_MS_PER_CHAR', 15),
+    typingMinMs: num('FAST_TYPING_MIN_MS', 800),
+    typingMaxMs: num('FAST_TYPING_MAX_MS', 2500),
+    minGapBetweenSendsMs: num('FAST_MIN_GAP_BETWEEN_SENDS_MS', 1200),
+  },
+
   limits: {
     perChatPerMinute: num('PER_CHAT_REPLIES_PER_MINUTE', 4),
     perChatPerHour: num('PER_CHAT_REPLIES_PER_HOUR', 30),

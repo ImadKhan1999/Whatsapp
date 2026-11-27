@@ -2,6 +2,7 @@
 export const forgotPassword = {
   id: 'forgot',
   menu: '3',
+  speed: 'fast', // people use this most: answer quicker
   title: 'Forgot password',
   match: /\b(forgot|forget|reset)\b.*\bpass(word)?\b|\bpassword\b/i,
   handle: () =>

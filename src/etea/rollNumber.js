@@ -3,6 +3,7 @@
 export const rollNumber = {
   id: 'rollno',
   menu: '1',
+  speed: 'fast', // people use this most: answer quicker
   title: 'Roll number slip',
   match: /\broll\s*(no|number|slip)?\b/i,
   handle: () =>
